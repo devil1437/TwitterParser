@@ -1,0 +1,6 @@
+*.egofeat.txt
+*.feat.txt
+*.featnames.txt
+*.inedge.txt
+*.outedge.txt
+IDList2.txt
