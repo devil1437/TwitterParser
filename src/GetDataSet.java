@@ -1,6 +1,7 @@
 
 import twitter4j.HashtagEntity;
 import twitter4j.Paging;
+import twitter4j.RateLimitStatus;
 import twitter4j.Status;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
@@ -18,7 +19,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,25 +37,27 @@ import java.util.Properties;
 import java.util.Set;
 
 public class GetDataSet {
-	public static void main(String[] args) {
+	private static final int TRACE_DEPTH = 2;
+	private static int PARSE_COUNT = 0;
+	
+	public static void main(String[] args) throws TwitterException, InterruptedException {
 
-		//getAccessToken("eqAYO7roPzCMhrDwNi8cg", "BTBK6A0v3HU9cSoxwacj5UiPqsuxm6ZGQq6C9RM");
+//		getAccessToken("6SvPTmpY1Iubu0UQvnGWoQ", "4qc4Rzomc0VwaSh0uok8o2dAF4HhABWkNH6GsRjaU");
 
 
 		Twitter twitter = new TwitterFactory().getInstance();
 		long ID = 0;
 		String user = null;
-
-
+		
 		try {
 			//user = twitter.verifyCredentials().getScreenName();
 			//ID = twitter.getId();
 
-			FileInputStream fstream = new FileInputStream("IDListIn.txt");
+			FileInputStream fstream = new FileInputStream("IDListEdgeIn.txt");
 			DataInputStream in = new DataInputStream(fstream);
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
 			BufferedWriter bw = new BufferedWriter(new FileWriter(new File(
-					"IDListOut.txt"), false));
+					"IDListEdgeOut.txt"), false));
 			String strLine;
 			while ((strLine = br.readLine()) != null)   {
 				// Print the content on the console
@@ -71,18 +73,12 @@ public class GetDataSet {
 					bw.flush();
 					continue;
 				}
-				File file = new File(tokens[0]+".outedge.txt");
-				if(file.exists()){
-					System.out.println(tokens[0] + " has been collected.");
-					bw.write(tokens[0]+"\t1\n");
-					bw.flush();
-					continue;
-				}
 				
 				ID = Long.parseLong(tokens[0]);
 				user = twitter.showUser(ID).getScreenName();
 				System.out.println("Collecting.." + ID + ", " + user);
-				collectData(twitter, ID, user);
+				parseEdge(twitter, ID, user, 0);
+//				collectData(twitter, ID, user);
 				bw.write(tokens[0]+"\t1\n");
 				bw.flush();
 				
@@ -91,7 +87,7 @@ public class GetDataSet {
 			in.close();
 			br.close();
 			bw.close();
-			//user = "devil1437";
+			//user = "devil1437"; ID = 2260179674;
 			//ID = twitter.showUser(user).getId();
 			
 			//ID = 0;
@@ -114,11 +110,18 @@ public class GetDataSet {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		} catch (NumberFormatException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
 
 
-	public static void collectData(Twitter twitter, long ID, String user) {
+	public static void collectData(Twitter twitter, long ID, String user) throws InterruptedException, TwitterException {
+		System.out.println("Collecting.." + ID + ", " + user + ", " + PARSE_COUNT++);
 
 		List<Status> statuses = null;
 
@@ -182,10 +185,75 @@ public class GetDataSet {
 
 		inEdge(ID, followers);
 		outEdge(ID, following);
+		
+		Thread.sleep(5000);
 	}
 
 
-
+	public static void parseEdge(Twitter twitter, long ID, String user, int depth) throws TwitterException, NumberFormatException, IOException, InterruptedException{
+		System.out.println("Collecting.." + ID + ", " + user + ", " + depth);
+		
+		if(depth < TRACE_DEPTH){
+			File file = new File(ID+".outedge.txt");
+			if(file.exists()){
+				FileInputStream fstream = new FileInputStream(file);
+				DataInputStream in = new DataInputStream(fstream);
+				BufferedReader br = new BufferedReader(new InputStreamReader(in));
+				String strLine;
+				while ((strLine = br.readLine()) != null)   {
+					long tempID = Long.parseLong(strLine);
+					String tempUser = twitter.showUser(tempID).getScreenName();
+					parseEdge(twitter, tempID, tempUser, depth+1);
+				}
+				br.close();
+			}
+			else{
+				collectData(twitter, ID, user);
+				List<User> following = twitter.getFriendsList(user, -1);
+				
+				for(User u : following) {
+					parseEdge(twitter, u.getId(), u.getScreenName(), depth+1);
+				}
+			}
+			
+			file = new File(ID+".inedge.txt");
+			if(file.exists()){
+				FileInputStream fstream = new FileInputStream(file);
+				DataInputStream in = new DataInputStream(fstream);
+				BufferedReader br = new BufferedReader(new InputStreamReader(in));
+				String strLine;
+				while ((strLine = br.readLine()) != null)   {
+					long tempID = Long.parseLong(strLine);
+					String tempUser = twitter.showUser(tempID).getScreenName();
+					parseEdge(twitter, tempID, tempUser, depth+1);
+				}
+				br.close();
+			}
+			else{
+				collectData(twitter, ID, user);
+				List<User> followers = twitter.getFollowersList(user, -1);
+				
+				for(User u : followers) {
+					parseEdge(twitter, u.getId(), u.getScreenName(), depth+1);
+				}
+			}
+		}
+		else if(depth == TRACE_DEPTH){
+			File file = new File(ID+".outedge.txt");
+			if(!file.exists()){
+				collectData(twitter, ID, user);
+			}
+			
+			file = new File(ID+".inedge.txt");
+			if(!file.exists()){
+				collectData(twitter, ID, user);
+			}		
+		}
+		else{
+			return;
+		}	
+		Thread.sleep(5000);
+	}
 
 	public static void featNames(long ID, Map<HashtagEntity, Feature> hashtags, Map<UserMentionEntity, Feature>mentions) {
 		Writer w = null;

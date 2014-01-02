@@ -4,3 +4,4 @@
 *.inedge.txt
 *.outedge.txt
 IDList2.txt
+bin/
