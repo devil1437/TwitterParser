@@ -1,0 +1,16 @@
+Parse .feat .featnames .egofeat .outedge
+========================================
+
+1. Check the input, output exist
+EdgesLevel1.txt(first circle) and EdgesLevel2.txt(second circle) is the input file.
+You should create a symbolic link "data" to the twitter data folder.
+
+2. run the command
+java -jar parseAll.jar
+
+
+Add parsed node(file2) to list(file1)
+=====================================
+
+1. run the command
+java -jar mergeFiles.jar file1 file2
